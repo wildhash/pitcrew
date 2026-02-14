@@ -28,10 +28,12 @@ PitCrew is a secure, observable MCP "workflow racer" built on Archestra: compose
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4
 - **Runtime**: React 19
+- **Testing**: Jest + React Testing Library
+- **UI Components**: Custom lightweight UI kit
 
 ## Getting Started
 
@@ -81,6 +83,14 @@ pitcrew/
 │   ├── page.tsx            # Main dashboard page
 │   └── globals.css         # Global styles
 ├── components/              # React components
+│   ├── ui/                 # Reusable UI components
+│   │   ├── Button.tsx     # Button with variants
+│   │   ├── Card.tsx       # Card layouts
+│   │   ├── Badge.tsx      # Status badges
+│   │   ├── Spinner.tsx    # Loading spinner
+│   │   ├── Alert.tsx      # Alert messages
+│   │   ├── FormField.tsx  # Form inputs
+│   │   └── AsyncBlock.tsx # Loading/error/empty states
 │   ├── MCPServersList.tsx  # Server registry display
 │   ├── RaceTemplateSelector.tsx  # Template selection
 │   ├── RaceExecutor.tsx    # Race execution interface
@@ -89,7 +99,7 @@ pitcrew/
 ├── lib/                     # Core libraries
 │   └── archestra/          # Archestra integration
 │       ├── types.ts        # TypeScript type definitions
-│       └── client.ts       # Mock Archestra client
+│       └── client.ts       # Archestra client (mock + real modes)
 └── public/                 # Static assets
 ```
 
@@ -114,13 +124,39 @@ pitcrew/
 
 ## Configuration
 
-To connect to a real Archestra deployment, set the following environment variable:
+### Environment Modes
+
+PitCrew supports two modes: **mock** (default) and **real** (production).
+
+#### Mock Mode (Default)
+
+The app works out of the box with simulated data—no external dependencies required. Perfect for demos and development.
 
 ```bash
-ARCHESTRA_API_URL=http://your-archestra-instance:3001
+# .env (or leave unset)
+ARCHESTRA_MODE=mock
 ```
 
-By default, the app uses a mock client with simulated data for demonstration purposes.
+#### Real Mode (Production)
+
+Connect to a real Archestra deployment for production use:
+
+```bash
+# .env
+ARCHESTRA_MODE=real
+ARCHESTRA_API_URL=http://your-archestra-instance:3000
+ARCHESTRA_TIMEOUT_MS=8000  # Optional, defaults to 8000ms
+```
+
+**Requirements for real mode:**
+- `ARCHESTRA_API_URL` must be set to your Archestra instance
+- The Archestra server must expose the following endpoints:
+  - `GET /api/servers` - List MCP servers
+  - `GET /api/templates` - List race templates
+  - `POST /api/race` - Execute race
+  - `POST /api/attack-lap` - Execute attack lap
+
+See `.env.example` for a complete configuration template.
 
 ## Development
 
@@ -130,15 +166,47 @@ By default, the app uses a mock client with simulated data for demonstration pur
 - `npm run build` - Build for production
 - `npm start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm test` - Run tests
+- `npm run test:watch` - Run tests in watch mode
+
+### Testing
+
+PitCrew includes comprehensive tests using Jest and React Testing Library:
+
+**Run all tests:**
+```bash
+npm test
+```
+
+**Run tests in watch mode:**
+```bash
+npm run test:watch
+```
+
+**Test coverage includes:**
+- Component tests (RaceExecutor, AttackLap)
+- API route tests (race, attack-lap endpoints)
+- Client tests (mock/real mode switching, timeout handling)
+
+All tests pass and cover core functionality, attack scenarios, and error handling.
 
 ## Architecture
 
 PitCrew follows a clean architecture pattern:
 
-- **Presentation Layer**: React components with TypeScript
+- **Presentation Layer**: React components with TypeScript and custom UI kit
 - **API Layer**: Next.js API routes for server-side logic
-- **Integration Layer**: Archestra client for MCP orchestration
+- **Integration Layer**: Archestra client with mode switching (mock/real)
 - **Type Safety**: Comprehensive TypeScript types throughout
+- **Testing**: Full test coverage with Jest and React Testing Library
+
+### What Archestra Features Does PitCrew Demonstrate?
+
+1. **MCP Server Registry**: Discover and list available MCP servers
+2. **Prompt Templates**: Reusable workflow templates with parameter substitution
+3. **Orchestration**: Execute multi-tool workflows across MCP servers
+4. **Security/Attack Lap**: Test prompt injection defense and tool blocking
+5. **Observability**: Full execution traces with token usage and tool call tracking
 
 ## Security
 
