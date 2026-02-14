@@ -64,7 +64,7 @@ export default function RaceResults({ result }: RaceResultsProps) {
         <div className="mb-4">
           <h4 className="font-semibold mb-2">Tool Calls</h4>
           <div className="space-y-2">
-            {result.toolCalls.map((call, index) => (
+            {result.toolCalls.map((call) => (
               <div
                 key={call.id}
                 className="p-3 bg-gray-800 rounded border-l-4 border-blue-500"
