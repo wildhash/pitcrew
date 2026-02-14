@@ -1,9 +1,12 @@
-// Mock Archestra API client
-// In production, this would connect to real Archestra endpoints
+// Archestra API client with mode switching (mock vs real)
+// Supports both development (mock) and production (real API) modes
 
 import type { MCPServer, RaceTemplate, RaceResult, AttackLapResult, ToolCall, TraceEvent } from "./types";
 
-const ARCHESTRA_API_URL = process.env.ARCHESTRA_API_URL || "http://localhost:3001";
+// Environment configuration
+const ARCHESTRA_MODE = process.env.ARCHESTRA_MODE || "mock"; // "mock" | "real"
+const ARCHESTRA_API_URL = process.env.ARCHESTRA_API_URL || "http://localhost:3000";
+const ARCHESTRA_TIMEOUT_MS = parseInt(process.env.ARCHESTRA_TIMEOUT_MS || "8000", 10);
 
 // Mock data for development
 const mockMCPServers: MCPServer[] = [
@@ -90,35 +93,141 @@ const mockRaceTemplates: RaceTemplate[] = [
 
 export class ArchestraClient {
   private baseUrl: string;
+  private mode: "mock" | "real";
+  private timeoutMs: number;
 
-  constructor(baseUrl: string = ARCHESTRA_API_URL) {
+  constructor(
+    baseUrl: string = ARCHESTRA_API_URL,
+    mode: "mock" | "real" = ARCHESTRA_MODE as "mock" | "real",
+    timeoutMs: number = ARCHESTRA_TIMEOUT_MS
+  ) {
     this.baseUrl = baseUrl;
+    this.mode = mode;
+    this.timeoutMs = timeoutMs;
+
+    // Validate configuration for real mode
+    if (this.mode === "real" && !this.baseUrl) {
+      throw new Error(
+        "ARCHESTRA_API_URL must be set when ARCHESTRA_MODE=real. " +
+        "Example: ARCHESTRA_API_URL=http://localhost:3000"
+      );
+    }
+  }
+
+  /**
+   * Fetch with timeout support using AbortController
+   */
+  private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Request timeout after ${this.timeoutMs}ms`);
+      }
+      throw error;
+    }
   }
 
   async listMCPServers(): Promise<MCPServer[]> {
-    // In production: await fetch(`${this.baseUrl}/api/servers`)
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(mockMCPServers), 500);
-    });
+    if (this.mode === "mock") {
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(mockMCPServers), 500);
+      });
+    }
+
+    // Real mode: fetch from API
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/servers`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch servers: ${response.statusText}`);
+    }
+    return response.json();
   }
 
   async listRaceTemplates(): Promise<RaceTemplate[]> {
-    // In production: await fetch(`${this.baseUrl}/api/templates`)
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(mockRaceTemplates), 500);
-    });
+    if (this.mode === "mock") {
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(mockRaceTemplates), 500);
+      });
+    }
+
+    // Real mode: fetch from API
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/templates`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch templates: ${response.statusText}`);
+    }
+    return response.json();
   }
 
   async getRaceTemplate(id: string): Promise<RaceTemplate | null> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const template = mockRaceTemplates.find((t) => t.id === id);
-        resolve(template || null);
-      }, 300);
-    });
+    if (this.mode === "mock") {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          const template = mockRaceTemplates.find((t) => t.id === id);
+          resolve(template || null);
+        }, 300);
+      });
+    }
+
+    // Real mode: fetch from API
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/templates/${id}`);
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch template: ${response.statusText}`);
+    }
+    return response.json();
   }
 
   async executeRace(templateId: string, parameters: Record<string, string>): Promise<RaceResult> {
+    if (this.mode === "mock") {
+      return this.executeMockRace(templateId, parameters);
+    }
+
+    // Real mode: POST to API
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/race`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templateId, parameters }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to execute race: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async executeAttackLap(injectionType: string, payload: string): Promise<AttackLapResult> {
+    if (this.mode === "mock") {
+      return this.executeMockAttackLap(injectionType, payload);
+    }
+
+    // Real mode: POST to API
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/attack-lap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ injectionType, payload }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to execute attack lap: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Mock implementation for race execution
+   */
+  private async executeMockRace(templateId: string, parameters: Record<string, string>): Promise<RaceResult> {
     // Simulate race execution
     const template = await this.getRaceTemplate(templateId);
     if (!template) {
@@ -202,7 +311,10 @@ export class ArchestraClient {
     };
   }
 
-  async executeAttackLap(injectionType: string, payload: string): Promise<AttackLapResult> {
+  /**
+   * Mock implementation for attack lap execution
+   */
+  private async executeMockAttackLap(injectionType: string, payload: string): Promise<AttackLapResult> {
     // Simulate attack lap execution
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
