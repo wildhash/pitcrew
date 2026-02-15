@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { RaceTemplate, RaceResult } from "@/lib/archestra/types";
+import { Button, Card, Alert, FormField, Spinner } from "./ui";
 
 interface RaceExecutorProps {
   template: RaceTemplate;
@@ -13,11 +14,12 @@ export default function RaceExecutor({ template, onComplete }: RaceExecutorProps
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Extract parameter placeholders from prompt
-  const parameterNames = Array.from(
-    template.prompt.matchAll(/\{([^}]+)\}/g),
-    (m) => m[1]
-  );
+  // Extract parameter placeholders from prompt - helper for testability
+  const extractParameterNames = (prompt: string): string[] => {
+    return Array.from(prompt.matchAll(/\{([^}]+)\}/g), (m) => m[1]);
+  };
+
+  const parameterNames = extractParameterNames(template.prompt);
 
   const handleExecute = async () => {
     try {
@@ -50,7 +52,7 @@ export default function RaceExecutor({ template, onComplete }: RaceExecutorProps
 
   return (
     <div className="space-y-4">
-      <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
+      <Card>
         <h3 className="text-xl font-bold mb-4">Execute: {template.name}</h3>
         
         <div className="mb-4 p-3 bg-gray-800 rounded">
@@ -62,49 +64,42 @@ export default function RaceExecutor({ template, onComplete }: RaceExecutorProps
           <div className="space-y-3 mb-4">
             <p className="text-sm font-semibold">Parameters:</p>
             {parameterNames.map((name) => (
-              <div key={name}>
-                <label className="block text-sm mb-1 text-gray-400">
-                  {name}
-                </label>
-                <input
-                  type="text"
-                  value={parameters[name] || ""}
-                  onChange={(e) =>
-                    setParameters({ ...parameters, [name]: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded focus:border-blue-500 focus:outline-none"
-                  placeholder={`Enter ${name}`}
-                />
-              </div>
+              <FormField
+                key={name}
+                label={name}
+                id={`param-${name}`}
+                value={parameters[name] || ""}
+                onChange={(value) => setParameters({ ...parameters, [name]: value })}
+                placeholder={`Enter ${name}`}
+                disabled={executing}
+                required
+              />
             ))}
           </div>
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-900/20 border border-red-500 rounded">
-            <p className="text-sm text-red-400">Error: {error}</p>
+          <div className="mb-4">
+            <Alert variant="error">{error}</Alert>
           </div>
         )}
 
-        <button
+        <Button
           onClick={handleExecute}
           disabled={!canExecute || executing}
-          className={`w-full py-3 px-4 rounded font-semibold transition-colors ${
-            canExecute && !executing
-              ? "bg-blue-600 hover:bg-blue-700 text-white"
-              : "bg-gray-700 text-gray-400 cursor-not-allowed"
-          }`}
+          variant="primary"
+          className="w-full"
         >
           {executing ? (
             <span className="flex items-center justify-center">
-              <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></span>
+              <Spinner size="sm" className="mr-2" />
               Executing Race...
             </span>
           ) : (
             "Start Race"
           )}
-        </button>
-      </div>
+        </Button>
+      </Card>
     </div>
   );
 }
